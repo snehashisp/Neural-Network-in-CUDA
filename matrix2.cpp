@@ -30,20 +30,22 @@ class matrix {
 	}
 };
 
-matrix *readCSV(){
+void readCSV(){
 	FILE* f1 = fopen("apparel-trainval.csv","r");
 
-	char rec[2048];
+	char rec[4096];
 	bool flag=false;
 	matrix *mat = new matrix;
+	matrix *out_mat = new matrix;
 	int width=785;
 	int height=60000;
 
 	mat -> init(height,width);
+	out_mat -> init(height,1);
 	
 	int i=0;
 	while(fscanf(f1, "%s", rec) != EOF){
-		cout<<i<<" ";
+		cout<<i<<endl;
 		if(!flag){
 			flag=true;
 			continue;
@@ -51,18 +53,24 @@ matrix *readCSV(){
         char *p = strtok (rec, ",");
         int j=0;
         while (p != NULL){
+        	if(j==0){
+        		out_mat->mat[i];
+        		j++;
+        		continue;
+        	}
 			mat->mat[i*width + j]=atoi(p);
 	        p = strtok (NULL, ",");
 	        j++;
 	    }
 	    i++;
 	}
-	return mat;
+	cout<<"done\n";
 
 }
+
 int main(int argc, char const *argv[])
 {
 	
 	readCSV();
-	return 0;
+	
 }
