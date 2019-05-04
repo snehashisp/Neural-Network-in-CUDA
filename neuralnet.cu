@@ -33,6 +33,8 @@ class neural_network {
 
 	void forward(matrix *data,bool updates = false) {
 
+		data -> storeCuda();
+
 		if(data -> height != batch_size || data -> width != input_size) {
 			printf(" Input Data dimension mismatch required %d %d given %d %d",
 				batch_size,input_size,data -> height,data -> width);
@@ -57,6 +59,8 @@ class neural_network {
 
 	void MSELossDiff(matrix *labels,bool updates = false) {
 
+		labels -> storeCuda();
+
 		matrix *final = activation_arr[activation_arr.size()-1];
 		if(final -> height != labels -> height || final -> width != labels -> width) {
 			printf(" Input Data dimension mismatch required %d %d given %d %d",
@@ -64,16 +68,18 @@ class neural_network {
 			return;
 		}
 		cuda_vecDiff(labels,final,mseLossDiff,updates);
-		cuda_hadamard(mseLossDiff,mseLossDiff,mseLoss,updates);
 	}
 
 	double returnSingleLoss() {
 
+		cuda_hadamard(mseLossDiff,mseLossDiff,mseLoss,true);
 		cuda_reduce(mseLoss,singleLoss,OP_ADD,3,true);
 		return singleLoss -> mat[0]/(batch_size * output_dim);
 	}
 
 	void backprop(matrix *data,double lrate,bool updates = false) {
+
+		data -> storeCuda();
 
 		int i = activation_arr.size() - 1;
 		matrix *inp,*err = mseLossDiff;
@@ -91,7 +97,15 @@ class neural_network {
 			transPoseSpace -> height = inp -> width;
 			transPoseSpace -> width = inp -> height;
 			cuda_matmul(transPoseSpace,output_arr[i],gradient_arr[i]);
-			cuda_operation(gradient_arr[i],gradient_arr[i],batch_size,OP_DIV);
+			cuda_operation(gradient_arr[i],gradient_arr[i],lrate / batch_size,OP_MUL);
+
+
+			//update bias
+			if(use_bias) {
+				cuda_reduce(err,reductionMat,OP_ADD,1);
+				cuda_operation(reductionMat,reductionMat,lrate / batch_size,OP_MUL);
+				cuda_vecADD(biases_arr[i],reductionMat,biases_arr[i]);
+			}
 
 			//partial error at prev level
 			if(i > 0) {
@@ -99,13 +113,12 @@ class neural_network {
 				transPoseSpace -> height = weight_arr[i] -> width;
 				transPoseSpace -> width = weight_arr[i] -> height;
 				cuda_matmul(err,transPoseSpace,activation_arr[i-1]);
+				err = activation_arr[i-1];
 			}
+		}
 
-			//update bias
-			if(use_bias) {
-				cuda_reduce(err,reductionMat,OP_ADD,1);
-				cuda_operation()
-			}
+		for(int i = 0; i < gradient_arr.size(); i++) {
+			cuda_vecADD(weight_arr[i],gradient_arr[i],weight_arr[i]);
 		}
 
 	}
@@ -181,6 +194,13 @@ class neural_network {
 		output_dim = nodeList[nodeList.size()-1];
 
 	}
+
+
+	void trainModel(matrix *data, matrix *label,int epochs,double lrate) {
+		data -> storeCuda();
+		label -> storeCuda();
+	}
+
 
 	void print_weights() {
 

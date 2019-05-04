@@ -47,24 +47,44 @@ using namespace std;
 // 	// //while(1);
 // }	
 
+// int main() {
+
+// 	neural_network nn;
+// 	std :: vector<int> weights = {2,1,2};
+// 	nn.init(weights,2);
+// 	nn.print_weights();
+// 	nn.print_biases();
+// 	nn.print_outputs();
+// 	nn.print_activations();
+
+// 	matrix *inp = new matrix;
+// 	inp->init(2,2);
+// 	gaussianInitializer(inp,0,1);
+// 	inp -> print();
+// 	nn.forward(inp,true);
+// 	nn.print_outputs();
+// 	nn.print_activations();
+// 	nn.MSELossDiff(inp,true);
+// 	printf("Loss %lf\n",nn.returnSingleLoss());
+// 	nn.printLossMat();
+// 	printf("\n");
+
+// 	gaussianInitializer(inp,0,1);
+// 	inp -> print();
+// 	nn.forward(inp,true);
+// 	nn.print_outputs();
+// 	nn.print_activations();
+// 	nn.MSELossDiff(inp,true);
+// 	printf("Loss %lf",nn.returnSingleLoss());
+// 	nn.printLossMat();
+// }
+
 int main() {
 
-	neural_network nn;
-	std :: vector<int> weights = {2,1,2};
-	nn.init(weights,2);
-	nn.print_weights();
-	nn.print_biases();
-	nn.print_outputs();
-	nn.print_activations();
+	matrix *mat1 = new matrix, *mat2 = new matrix;
+	readCSV(mat1,mat2,60000,785,false);
 
-	matrix *inp = new matrix;
-	inp->init(2,2);
-	gaussianInitializer(inp,0,1);
-	inp -> print();
-	nn.forward(inp,true);
-	nn.print_outputs();
-	nn.print_activations();
-	nn.MSELossDiff(inp,true);
-	nn.printLossMat();
-	printf("Loss %lf",nn.returnSingleLoss());
+	matrix *mat3 = mat1 -> rowSlice(9,10);
+	mat2 -> print_shape();
+	mat3 -> print();
 }

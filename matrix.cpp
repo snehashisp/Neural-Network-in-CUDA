@@ -4,6 +4,7 @@
 #include<random>
 #include<chrono>
 
+using namespace std;
 
 #ifndef MATRIX 
 #define MATRIX
@@ -14,6 +15,7 @@ class matrix {
 	int height,width;
 	bool isUpdated = true;
 	double *cudaMat = NULL;
+	bool isCopy = false;
 
 	void init(int height,int width,double **imat = NULL) {
 		this -> height = height;
@@ -84,6 +86,21 @@ class matrix {
 		}
 	}
 
+	matrix *rowSlice(int rows,int rowe) {
+
+		updateCuda();
+		matrix *mat = new matrix;
+		mat -> height = rowe - rows;
+		mat -> width = width;
+		mat -> mat = this -> mat + rows * width;
+		mat -> isCopy = true;
+		if(cudaMat) {
+			mat -> cudaMat = cudaMat +  rows;
+			isUpdated = true;
+		}
+		return mat;
+	}
+
 };
 
 matrix *loadFromFile(char *loc) {
@@ -131,6 +148,40 @@ void gaussianInitializer(matrix *mat,double mean = 0, double std = 1) {
 	for (int i = 0; i < mat -> height*mat->width;i++) {
 		mat -> mat[i] = dist(gen);
 	}
+}
+
+
+void readCSV(matrix *mat , matrix *out_mat, int height,int width,bool flag = false){
+        FILE* f1 = fopen("apparel-trainval.csv","r");
+
+        char rec[100000];
+
+        mat -> init(height,width);
+        out_mat -> init(height,1);
+
+        int i=0;
+        while(fscanf(f1, "%s", rec) != EOF){
+                //cout<<i<<endl;
+                if(!flag){
+                        flag=true;
+                        continue;
+                }
+        char *p = strtok (rec, ",");
+        int j=0;
+        while (p != NULL){
+                if(j==0){
+                        out_mat->mat[i] = atoi(p);
+                        j++;
+                        continue;
+                }
+                        mat->mat[i*width + j]=atoi(p);
+                p = strtok (NULL, ",");
+                j++;
+            }
+            i++;
+        }
+        //cout<<"done\n";
+
 }
 
 #endif

@@ -118,6 +118,25 @@ void cuda_vecDiff(matrix *mat1,matrix *mat2,matrix *mat3,bool update = false) {
 
 }
 
+void cuda_vecADD(matrix *mat1,matrix *mat2,matrix *mat3,bool update = false) {
+
+	if(mat1->height != mat2 -> height && mat1 -> width != mat2 -> width) {
+		printf("MSE Dim mismatch %d %d %d %d\n",mat1 -> height,mat1 -> width,
+			mat2->height,mat2->width);
+	}
+	if(!mat1 -> cudaMat) mat1 -> storeCuda();
+	if(!mat2 -> cudaMat) mat2 -> storeCuda();
+	if(!mat3 -> mat) mat3 -> init(mat1 -> height,mat1 -> width);
+	if(!mat3 -> cudaMat) mat3 -> storeCuda();
+
+	saxpy_kernel<<<mat3->height,mat3->width>>>
+		(mat1->cudaMat,mat3->cudaMat,mat3->cudaMat,1);
+	if(update) mat3 -> updateCuda();
+	mat3 -> isUpdated = update;
+
+}
+
+
 void cuda_function(matrix *mat1,matrix *mat2,int fn,bool update = false) {
 
 	if(!mat1 -> cudaMat) mat1 -> storeCuda();
