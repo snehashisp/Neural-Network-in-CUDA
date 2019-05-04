@@ -105,10 +105,14 @@ void cuda_vecDiff(matrix *mat1,matrix *mat2,matrix *mat3,bool update = false) {
 	}
 	if(!mat1 -> cudaMat) mat1 -> storeCuda();
 	if(!mat2 -> cudaMat) mat2 -> storeCuda();
-	if(!mat3 -> mat) mat3 -> init(mat1 -> height,mat2 -> width);
+	if(!mat3 -> mat) mat3 -> init(mat1 -> height,mat1 -> width);
 	if(!mat3 -> cudaMat) mat3 -> storeCuda();
-	saxpy_kernel<<<mat1->height,mat1->width>>>
-		(mat1->cudaMat,mat2->cudaMat,mat3->cudaMat,1);
+
+	operate_kernel<<<mat3->height,mat3->width>>>
+		(mat2->cudaMat,mat3->cudaMat,-1,OP_MUL);
+
+	saxpy_kernel<<<mat3->height,mat3->width>>>
+		(mat1->cudaMat,mat3->cudaMat,mat3->cudaMat,1);
 	if(update) mat3 -> updateCuda();
 	mat3 -> isUpdated = update;
 

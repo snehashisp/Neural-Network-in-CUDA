@@ -2,6 +2,8 @@
 #include<cstdio>
 #include<cstdlib>
 #include<random>
+#include<chrono>
+
 
 #ifndef MATRIX 
 #define MATRIX
@@ -49,6 +51,10 @@ class matrix {
 		}
 	}
 
+	void print_shape() {
+		printf("\n(%d,%d)\n",height,width);
+	}
+
 	~matrix() {
 		if(mat) {
 			free(mat);
@@ -64,7 +70,7 @@ class matrix {
 	}
 
 	void updateCuda() {
-		if(cudaMat) {
+		if(cudaMat && mat) {
 			cudaMemcpy(mat,cudaMat,height * width * sizeof(double),cudaMemcpyDeviceToHost);
 			isUpdated = true;
 		}
@@ -74,6 +80,7 @@ class matrix {
 		if(cudaMat) {
 			updateCuda();
 			cudaFree(cudaMat);
+			cudaMat = NULL;
 		}
 	}
 
@@ -118,6 +125,7 @@ void gaussianInitializer(matrix *mat,double mean = 0, double std = 1) {
 	}
 
 	std :: default_random_engine gen;
+	gen.seed(std::chrono::system_clock::now().time_since_epoch().count());
 	std :: normal_distribution<double> dist(mean,std);
 
 	for (int i = 0; i < mat -> height*mat->width;i++) {

@@ -15,19 +15,28 @@ class neural_network {
 	std :: vector<matrix *> biases_arr;
 	std :: vector<matrix *> output_arr;
 	std :: vector<matrix *> activation_arr;
+	std :: vector<matrix *> gradient_arr;
 
-	int batch_size, input_size;
+	matrix *mseLossDiff = NULL;
+	matrix *mseLoss = NULL;
+	matrix *singleLoss = NULL ;
+	matrix *transPoseSpace = NULL;
+	matrix *reductionMat = NULL;
+
+	int batch_size, input_size, output_dim;
 	int activation = FN_SIGM;
+	int dactivation = FN_DSIGM;
+
 	bool use_bias = false;
 
 	public:
 
 	void forward(matrix *data,bool updates = false) {
 
-
 		if(data -> height != batch_size || data -> width != input_size) {
-			printf(" Data dimension mismatch required %d %d given %d %d",
+			printf(" Input Data dimension mismatch required %d %d given %d %d",
 				batch_size,input_size,data -> height,data -> width);
+			return;
 		}
 		int i = 0;
 
@@ -46,12 +55,67 @@ class neural_network {
 		}	
 	}
 
+	void MSELossDiff(matrix *labels,bool updates = false) {
+
+		matrix *final = activation_arr[activation_arr.size()-1];
+		if(final -> height != labels -> height || final -> width != labels -> width) {
+			printf(" Input Data dimension mismatch required %d %d given %d %d",
+				final -> height,final -> width,labels -> height,labels -> width);
+			return;
+		}
+		cuda_vecDiff(labels,final,mseLossDiff,updates);
+		cuda_hadamard(mseLossDiff,mseLossDiff,mseLoss,updates);
+	}
+
+	double returnSingleLoss() {
+
+		cuda_reduce(mseLoss,singleLoss,OP_ADD,3,true);
+		return singleLoss -> mat[0]/(batch_size * output_dim);
+	}
+
+	void backprop(matrix *data,double lrate,bool updates = false) {
+
+		int i = activation_arr.size() - 1;
+		matrix *inp,*err = mseLossDiff;
+
+		for(int i = activation_arr.size()-1; i >= 0; i--) {
+
+			if(i == 0) inp = data;
+			else inp = activation_arr[i-1];
+			//error 
+			cuda_function(output_arr[i],output_arr[i],dactivation);
+			cuda_hadamard(err,output_arr[i],output_arr[i]);
+
+			//weight update
+			cuda_transpose(inp,transPoseSpace);
+			transPoseSpace -> height = inp -> width;
+			transPoseSpace -> width = inp -> height;
+			cuda_matmul(transPoseSpace,output_arr[i],gradient_arr[i]);
+			cuda_operation(gradient_arr[i],gradient_arr[i],batch_size,OP_DIV);
+
+			//partial error at prev level
+			if(i > 0) {
+				cuda_transpose(weight_arr[i],transPoseSpace);
+				transPoseSpace -> height = weight_arr[i] -> width;
+				transPoseSpace -> width = weight_arr[i] -> height;
+				cuda_matmul(err,transPoseSpace,activation_arr[i-1]);
+			}
+
+			//update bias
+			if(use_bias) {
+				cuda_reduce(err,reductionMat,OP_ADD,1);
+				cuda_operation()
+			}
+		}
+
+	}
 
 	//public:
 
-	void init(std::vector<int> nodeList,int bsize,int activation = FN_SIGM, 
+	void init(std::vector<int> nodeList,int bsize, 
 		bool use_bias=true,double mean = 0,double std = 1) {
 
+		//Re initialize all data structures if three exists a previous initialization
 		for(int i = 0; i < weight_arr.size(); i++) {
 
 			weight_arr[i] -> freeCuda();
@@ -62,39 +126,95 @@ class neural_network {
 			output_arr[i] -> ~matrix();
 			activation_arr[i] -> freeCuda();
 			activation_arr[i] -> ~matrix();
-			this -> use_bias = use_bias;
 		}
 
 		weight_arr.clear();
 		output_arr.clear();
 		activation_arr.clear();
+		biases_arr.clear();
+		if(mseLoss) {
+			mseLoss -> freeCuda();
+			mseLoss -> ~matrix();
+			mseLossDiff -> freeCuda();
+			mseLossDiff -> ~matrix();
+			singleLoss -> freeCuda();
+			singleLoss -> ~matrix();
+			transPoseSpace -> freeCuda();
+			transPoseSpace -> ~matrix();
+		}
 
+		//new initialization 
+		int max = 0;
 		for(int i = 0; i < nodeList.size()-1; i++) {
 
-			matrix *mat = new matrix, *omat = new matrix, *amat = new matrix;
+			matrix *mat = new matrix, *omat = new matrix, 
+				*amat = new matrix, *gmat = new matrix;
 			mat -> init(nodeList[i],nodeList[i+1]);
 			gaussianInitializer(mat,mean,std);
 
-			if(use_bias == true) {
+			if(use_bias) {
 				matrix *bmat = new matrix;
 				bmat -> init(1,nodeList[i+1]);
-				gaussianInitializer(bmat,mean,std);
+				gaussianInitializer(bmat,mean,std/2);
 				biases_arr.push_back(bmat);
 			}
 
 			weight_arr.push_back(mat);
 			output_arr.push_back(omat);
 			activation_arr.push_back(amat);
+			gradient_arr.push_back(gmat);
+
+			if(nodeList[i] > max) max = nodeList[i];
 		}
+
+		mseLossDiff = new matrix;
+		mseLoss = new matrix;
+		singleLoss = new matrix;
+		transPoseSpace = new matrix;
+		reductionMat = new matrix;
+		transPoseSpace -> init(max,bsize);
 
 		batch_size = bsize;
 		this -> activation = activation;
+		this -> use_bias = use_bias;
 		input_size = nodeList[0];
+		output_dim = nodeList[nodeList.size()-1];
 
 	}
 
+	void print_weights() {
 
+		for(int i = 0; i < weight_arr.size(); i++) {
+			weight_arr[i] -> print_shape();
+			weight_arr[i] -> print();
+		}
+	}
 
+	void print_biases() {
+		for(int i = 0; i < biases_arr.size(); i++) {
+			biases_arr[i] -> print_shape();
+			biases_arr[i] -> print();
+		}
+	}
+
+	void print_outputs() {
+		for(int i = 0; i < output_arr.size(); i++) {
+			output_arr[i] -> print_shape();
+			output_arr[i] -> print();
+		}
+	}
+
+	void print_activations() {
+		for(int i = 0; i < activation_arr.size(); i++) {
+			activation_arr[i] -> print_shape();
+			activation_arr[i] -> print();
+		}
+	}
+
+	void printLossMat() {
+		mseLoss -> print_shape();
+		mseLoss -> print();
+	}
 };
 
 #endif
