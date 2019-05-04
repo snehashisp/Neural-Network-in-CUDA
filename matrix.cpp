@@ -1,6 +1,7 @@
 #include<iostream>
 #include<cstdio>
 #include<cstdlib>
+#include<random>
 
 #ifndef MATRIX 
 #define MATRIX
@@ -15,7 +16,7 @@ class matrix {
 	void init(int height,int width,double **imat = NULL) {
 		this -> height = height;
 		this -> width = width;
-		mat = new double[height*width];
+		mat = (double *)calloc(height*width,sizeof(double));
 		if(imat) {
 			for(int i = 0; i < height; i++) {
 				for(int j = 0; j < width; j++) 
@@ -49,8 +50,10 @@ class matrix {
 	}
 
 	~matrix() {
-		free(mat);
-		mat = NULL;
+		if(mat) {
+			free(mat);
+			mat = NULL;
+		}
 		height = width = 0;
 	}
 
@@ -61,13 +64,17 @@ class matrix {
 	}
 
 	void updateCuda() {
-		cudaMemcpy(mat,cudaMat,height * width * sizeof(double),cudaMemcpyDeviceToHost);
-		isUpdated = true;
+		if(cudaMat) {
+			cudaMemcpy(mat,cudaMat,height * width * sizeof(double),cudaMemcpyDeviceToHost);
+			isUpdated = true;
+		}
 	}
 
 	void freeCuda() {
-		updateCuda();
-		cudaFree(cudaMat);
+		if(cudaMat) {
+			updateCuda();
+			cudaFree(cudaMat);
+		}
 	}
 
 };
@@ -101,6 +108,21 @@ matrix *matrix_multi(matrix *mat1,matrix *mat2) {
 	}
 
 	return new_mat;
+}
+
+void gaussianInitializer(matrix *mat,double mean = 0, double std = 1) {
+
+	if(!mat -> mat) {
+		printf("Uninitialized Matrix\n");
+		return;
+	}
+
+	std :: default_random_engine gen;
+	std :: normal_distribution<double> dist(mean,std);
+
+	for (int i = 0; i < mat -> height*mat->width;i++) {
+		mat -> mat[i] = dist(gen);
+	}
 }
 
 #endif
