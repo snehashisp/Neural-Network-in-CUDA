@@ -30,13 +30,11 @@ class matrix {
 	}
 };
 
-void readCSV(){
+void readCSV(matrix *mat , matrix *out_mat){
 	FILE* f1 = fopen("apparel-trainval.csv","r");
 
 	char rec[4096];
 	bool flag=false;
-	matrix *mat = new matrix;
-	matrix *out_mat = new matrix;
 	int width=785;
 	int height=60000;
 
@@ -65,6 +63,7 @@ void readCSV(){
 	    i++;
 	}
 	cout<<"done\n";
+
 
 }
 
