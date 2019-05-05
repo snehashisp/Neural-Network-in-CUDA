@@ -6,6 +6,8 @@
 
 using namespace std;
 
+#define PREC "%6.2lf"
+
 #ifndef MATRIX 
 #define MATRIX
 class matrix {
@@ -13,7 +15,7 @@ class matrix {
 	public:
 	double *mat = NULL;
 	int height,width;
-	bool isUpdated = true;
+	bool isUpdated = false;
 	double *cudaMat = NULL;
 	bool isCopy = false;
 
@@ -47,7 +49,7 @@ class matrix {
 	void print() {
 		for(int i = 0; i < height; i++) {
 			for(int j = 0; j < width; j++) {
-				printf(" %6.2lf ",mat[i*width + j]);
+				printf(PREC,mat[i*width + j]);
 			}
 			printf("\n");
 		}
@@ -73,6 +75,8 @@ class matrix {
 
 	void updateCuda() {
 		if(cudaMat && mat) {
+			cudaDeviceSynchronize();
+			//cudaThreadSynchronize();
 			cudaMemcpy(mat,cudaMat,height * width * sizeof(double),cudaMemcpyDeviceToHost);
 			isUpdated = true;
 		}
@@ -86,16 +90,15 @@ class matrix {
 		}
 	}
 
-	matrix *rowSlice(int rows,int rowe) {
+	matrix *rowSlice(matrix *mat, int rows,int rowe) {
 
 		updateCuda();
-		matrix *mat = new matrix;
 		mat -> height = rowe - rows;
 		mat -> width = width;
 		mat -> mat = this -> mat + rows * width;
 		mat -> isCopy = true;
 		if(cudaMat) {
-			mat -> cudaMat = cudaMat +  rows;
+			mat -> cudaMat = cudaMat + rows * width;
 			isUpdated = true;
 		}
 		return mat;
@@ -151,37 +154,54 @@ void gaussianInitializer(matrix *mat,double mean = 0, double std = 1) {
 }
 
 
-void readCSV(matrix *mat , matrix *out_mat, int height,int width,bool flag = false){
+void readCSV(matrix *mat , matrix *out_mat, int height,int width,bool flag = false,int label = 0){
+        
         FILE* f1 = fopen("apparel-trainval.csv","r");
 
         char rec[100000];
 
+        width = width - 1;
         mat -> init(height,width);
         out_mat -> init(height,1);
 
         int i=0;
         while(fscanf(f1, "%s", rec) != EOF){
-                //cout<<i<<endl;
-                if(!flag){
-                        flag=true;
-                        continue;
-                }
-        char *p = strtok (rec, ",");
-        int j=0;
-        while (p != NULL){
-                if(j==0){
-                        out_mat->mat[i] = atoi(p);
-                        j++;
-                        continue;
-                }
-                        mat->mat[i*width + j]=atoi(p);
-                p = strtok (NULL, ",");
-                j++;
+            //cout<<i<<endl;
+            if(!flag){
+                    flag=true;
+                    continue;
+            }
+	        char *p = strtok (rec, ",");
+	        int j=0,k=0;
+	        while (p != NULL){
+	            if(j==label){
+
+	                out_mat->mat[i] = atoi(p);
+	                j++;
+	                continue;
+	            }
+	            //printf("%d %d\n",k,j);
+	            mat->mat[i*width + k++]=atoi(p);
+
+	            p = strtok (NULL, ",");
+	            j++;
             }
             i++;
         }
-        //cout<<"done\n";
+        cout<<"Loading done\n";
 
+}
+
+void storeAsCSV(matrix *mat,char *loc) {
+
+	FILE *fp = fopen(loc,"w");
+	for(int i = 0; i < mat -> height; i++) {
+		for(int j = 0; j < mat -> width-1;j++) {
+			fprintf(fp, "%6.4lf,", mat -> mat[i*mat->width + j]);
+		}
+		fprintf(fp, "%6.4lf\n", mat -> mat[i*mat->width + mat->width-1]);
+	}
+	fclose(fp);
 }
 
 #endif

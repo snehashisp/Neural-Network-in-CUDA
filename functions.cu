@@ -109,8 +109,7 @@ void cuda_vecDiff(matrix *mat1,matrix *mat2,matrix *mat3,bool update = false) {
 	if(!mat3 -> cudaMat) mat3 -> storeCuda();
 
 	operate_kernel<<<mat3->height,mat3->width>>>
-		(mat2->cudaMat,mat3->cudaMat,-1,OP_MUL);
-
+		(mat2->cudaMat,mat3->cudaMat,-1.0,OP_MUL);
 	saxpy_kernel<<<mat3->height,mat3->width>>>
 		(mat1->cudaMat,mat3->cudaMat,mat3->cudaMat,1);
 	if(update) mat3 -> updateCuda();
@@ -130,7 +129,7 @@ void cuda_vecADD(matrix *mat1,matrix *mat2,matrix *mat3,bool update = false) {
 	if(!mat3 -> cudaMat) mat3 -> storeCuda();
 
 	saxpy_kernel<<<mat3->height,mat3->width>>>
-		(mat1->cudaMat,mat3->cudaMat,mat3->cudaMat,1);
+		(mat1->cudaMat,mat2->cudaMat,mat3->cudaMat,1);
 	if(update) mat3 -> updateCuda();
 	mat3 -> isUpdated = update;
 
@@ -173,6 +172,7 @@ void cuda_reduce(matrix *mat1,matrix *res,int op,int axis,bool update = false) {
 		if(!res -> cudaMat) res -> storeCuda();
 		reduction_kernel<<<1,mat1->height,mat1->height>>>
 			(mat1 -> cudaMat,res -> cudaMat,op,mat1->width,axis);
+	
 	}
 	else if(axis == 2) {
 		if(!res -> mat) res -> init(mat1 -> height,1);

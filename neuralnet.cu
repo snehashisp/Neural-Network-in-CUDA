@@ -67,14 +67,24 @@ class neural_network {
 				final -> height,final -> width,labels -> height,labels -> width);
 			return;
 		}
+		// printf("\n==================\n");
+		// labels -> print();
+		// printf("\n==================\n");
+		// final -> print();
+		// printf("\n=====================\n");
 		cuda_vecDiff(labels,final,mseLossDiff,updates);
+
 	}
 
 	double returnSingleLoss() {
-
-		cuda_hadamard(mseLossDiff,mseLossDiff,mseLoss,true);
-		cuda_reduce(mseLoss,singleLoss,OP_ADD,3,true);
-		return singleLoss -> mat[0]/(batch_size * output_dim);
+		cuda_hadamard(mseLossDiff,mseLossDiff,mseLoss);
+		cuda_reduce(mseLoss,singleLoss,OP_ADD,1,true);
+		double sum = 0;
+		for(int i = 0; i < singleLoss -> width; i++) {
+			//printf("%lf",singleLoss -> mat[i]);
+			sum += singleLoss -> mat[i];
+		}
+		return sum/(batch_size * output_dim);
 	}
 
 	void backprop(matrix *data,double lrate,bool updates = false) {
@@ -89,36 +99,37 @@ class neural_network {
 			if(i == 0) inp = data;
 			else inp = activation_arr[i-1];
 			//error 
-			cuda_function(output_arr[i],output_arr[i],dactivation);
-			cuda_hadamard(err,output_arr[i],output_arr[i]);
+			cuda_function(output_arr[i],output_arr[i],dactivation,updates);
+			cuda_hadamard(err,output_arr[i],output_arr[i],updates);
 
 			//weight update
-			cuda_transpose(inp,transPoseSpace);
+			cuda_transpose(inp,transPoseSpace,updates);
 			transPoseSpace -> height = inp -> width;
 			transPoseSpace -> width = inp -> height;
-			cuda_matmul(transPoseSpace,output_arr[i],gradient_arr[i]);
-			cuda_operation(gradient_arr[i],gradient_arr[i],lrate / batch_size,OP_MUL);
+			cuda_matmul(transPoseSpace,output_arr[i],gradient_arr[i],updates);
+			cuda_operation(gradient_arr[i],gradient_arr[i],lrate / batch_size,OP_MUL,updates);
 
 
 			//update bias
 			if(use_bias) {
-				cuda_reduce(err,reductionMat,OP_ADD,1);
-				cuda_operation(reductionMat,reductionMat,lrate / batch_size,OP_MUL);
-				cuda_vecADD(biases_arr[i],reductionMat,biases_arr[i]);
+				reductionMat -> width = err -> width;
+				cuda_reduce(err,reductionMat,OP_ADD,1,updates);
+				cuda_operation(reductionMat,reductionMat,lrate / batch_size,OP_MUL,updates);
+				cuda_vecADD(biases_arr[i],reductionMat,biases_arr[i],updates);
 			}
 
 			//partial error at prev level
 			if(i > 0) {
-				cuda_transpose(weight_arr[i],transPoseSpace);
+				cuda_transpose(weight_arr[i],transPoseSpace,updates);
 				transPoseSpace -> height = weight_arr[i] -> width;
 				transPoseSpace -> width = weight_arr[i] -> height;
-				cuda_matmul(err,transPoseSpace,activation_arr[i-1]);
+				cuda_matmul(err,transPoseSpace,activation_arr[i-1],updates);
 				err = activation_arr[i-1];
 			}
 		}
 
 		for(int i = 0; i < gradient_arr.size(); i++) {
-			cuda_vecADD(weight_arr[i],gradient_arr[i],weight_arr[i]);
+			cuda_vecADD(weight_arr[i],gradient_arr[i],weight_arr[i],updates);
 		}
 
 	}
@@ -186,6 +197,7 @@ class neural_network {
 		transPoseSpace = new matrix;
 		reductionMat = new matrix;
 		transPoseSpace -> init(max,bsize);
+		reductionMat -> init(1,max);
 
 		batch_size = bsize;
 		this -> activation = activation;
@@ -196,15 +208,64 @@ class neural_network {
 	}
 
 
-	void trainModel(matrix *data, matrix *label,int epochs,double lrate) {
+	void trainModel(matrix *data, matrix *label,int epochs,double lrate,
+		int printLoss = 1) {
 		data -> storeCuda();
 		label -> storeCuda();
+		matrix *pdata = new matrix, *plabel = new matrix;
+
+		for(int e = 0; e < epochs; e++) {
+			printf("\nEpoch No %d \n",e+1);
+			double avgEpochLoss = 0;
+			for(int i = 0; i < data -> height; i += batch_size) {
+
+				data -> rowSlice(pdata,i,i+batch_size);
+				label -> rowSlice(plabel,i,i+batch_size);
+				forward(pdata);
+				MSELossDiff(plabel);
+				if(printLoss) {
+					double Loss = returnSingleLoss();
+					if(printLoss > 1)
+						printf("%lf\n",Loss);
+					avgEpochLoss += Loss;
+				}
+				backprop(pdata,lrate);
+			}
+			if(printLoss)
+				printf("  Average Epoch Loss %8.10lf",
+					avgEpochLoss/(data -> height / batch_size));
+		}
 	}
 
+	matrix *encode(matrix *data) {
+
+		matrix *rmat = new matrix;
+		rmat -> init(data -> height,
+			activation_arr[(int)(activation_arr.size()/2 -1)] -> width);
+		matrix *pdata = new matrix;
+		data -> storeCuda();
+
+		for(int i = 0; i < data -> height; i += batch_size) {
+			
+			data -> rowSlice(pdata,i,i+batch_size);
+			forward(pdata);
+			matrix *emat = activation_arr[(int)(activation_arr.size()/2 -1)];
+			emat -> updateCuda();
+			for(int j = 0; j < batch_size; j++) {
+				for(int k = 0; k < emat -> width; k++) {
+					//printf("%lf\n",emat -> mat[j*emat -> width + k]);
+					rmat -> mat[(j+i)*rmat -> width + k] = 
+						emat -> mat[j*emat -> width + k];
+				}
+			}
+		}
+		return rmat;
+	}
 
 	void print_weights() {
 
 		for(int i = 0; i < weight_arr.size(); i++) {
+			weight_arr[i] -> updateCuda();
 			weight_arr[i] -> print_shape();
 			weight_arr[i] -> print();
 		}
@@ -212,6 +273,7 @@ class neural_network {
 
 	void print_biases() {
 		for(int i = 0; i < biases_arr.size(); i++) {
+			biases_arr[i] -> updateCuda();
 			biases_arr[i] -> print_shape();
 			biases_arr[i] -> print();
 		}
@@ -219,6 +281,7 @@ class neural_network {
 
 	void print_outputs() {
 		for(int i = 0; i < output_arr.size(); i++) {
+			output_arr[i] -> updateCuda();
 			output_arr[i] -> print_shape();
 			output_arr[i] -> print();
 		}
@@ -226,12 +289,14 @@ class neural_network {
 
 	void print_activations() {
 		for(int i = 0; i < activation_arr.size(); i++) {
+			activation_arr[i] -> updateCuda();
 			activation_arr[i] -> print_shape();
 			activation_arr[i] -> print();
 		}
 	}
 
 	void printLossMat() {
+		mseLoss -> updateCuda();
 		mseLoss -> print_shape();
 		mseLoss -> print();
 	}

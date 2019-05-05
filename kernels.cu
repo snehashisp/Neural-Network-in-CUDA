@@ -28,7 +28,7 @@ __device__ double operation(int op,double elem1,double elem2) {
 __device__ double function(int fn,double elem) {
 
 	if (fn == FN_SIGM) return 1/(1 + exp(-1*elem));
-	else if(fn == FN_RELU) return (elem > 0.00001 ? elem : 0);
+	else if(fn == FN_RELU) return (elem > 0.00001 ? elem: 0);
 	else if(fn == FN_DSIGM) {
 		double sig = 1/(1 + exp(-1*elem));
 		return sig*(1 - sig);
@@ -81,7 +81,7 @@ __global__ void saxpy_kernel(double *mat1,double *mat2,double *res,double a = 1)
 __global__ void operate_kernel(double *mat1,double *res,double a,int op) {
 
 	res[blockIdx.x*blockDim.x + threadIdx.x] = 
-		operation(op,a,mat1[blockIdx.x*blockDim.x + threadIdx.x]);
+		operation(op,mat1[blockIdx.x*blockDim.x + threadIdx.x],a);
 }
 
 __global__ void function_kernel(double *mat1,double *res,int fn) {
@@ -102,17 +102,23 @@ __global__ void reduction_kernel(double *mat1,double *res,int op,int dim,int axi
 			sum = operation(op,sum,mat1[threadIdx.x*dim + i]);
 		if(axis == 3) {
 			extern __shared__ double s[];
+			__syncthreads();
 			s[threadIdx.x] = sum;
 			__syncthreads();
 			if(threadIdx.x == 0) {
 				sum = 0;
 				for(int i = 0; i < blockDim.x; i++)
 					sum = operation(op,sum,s[i]);
+				res[0] = sum;
+				//printf("%lf",sum);
 			}
-			*res = sum;
+			__syncthreads();
+			return;
 		}
 		res[threadIdx.x] = sum;
 	}
 
 }
+
+
 #endif
