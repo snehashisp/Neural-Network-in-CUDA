@@ -156,7 +156,7 @@ void gaussianInitializer(matrix *mat,double mean = 0, double std = 1) {
 
 void readCSV(matrix *mat , matrix *out_mat, int height,int width,bool flag = false,int label = 0){
         
-        FILE* f1 = fopen("apparel-trainval.csv","r");
+        FILE* f1 = fopen("Data20000","r");
 
         char rec[100000];
 
@@ -202,6 +202,20 @@ void storeAsCSV(matrix *mat,char *loc) {
 		fprintf(fp, "%6.4lf\n", mat -> mat[i*mat->width + mat->width-1]);
 	}
 	fclose(fp);
+}
+
+matrix *point_multi(matrix *mat1,matrix *mat2) {
+
+	matrix *hmat = new matrix;
+	hmat -> init(mat1 -> height, mat1 -> width);
+	for(int i = 0; i < mat1 -> height; i++) {
+		for(int j = 0; j < mat1 -> width; j++) {
+			hmat -> mat[i*mat1 -> width + j] = 
+				mat1 -> mat[i*mat1 -> width + j]*mat2 -> mat[i*mat1 -> width + j];
+		}
+	}
+
+	return hmat;
 }
 
 #endif

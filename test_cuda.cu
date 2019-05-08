@@ -83,28 +83,19 @@ using namespace std;
 int main() {
 
 	matrix *mat1 = new matrix, *mat2 = new matrix;
-	readCSV(mat1,mat2,60000,785,false);
+	readCSV(mat1,mat2,20000,785,false);
 	cuda_operation(mat1,mat1,255,OP_DIV,true);
 	neural_network nn;
-	std :: vector<int> weights = {784,50,784};
-	nn.init(weights,1000,false);
-	nn.trainModel(mat1,mat1,100,0.01,2);
+
+	std :: vector<int> weights = {784,500,784};
+	nn.init(weights,20000,false);
+
+	auto t_start = std::chrono::high_resolution_clock::now();
+	nn.trainModel(mat1,mat1,100,0.1,0);
+	auto t_end = std::chrono::high_resolution_clock::now();
+
+
 	matrix *emat = nn.encode(mat1);
 	storeAsCSV(emat,"results.csv");
-	// matrix *mat3 = new matrix, *mat4 = new matrix;
-	// mat1 -> rowSlice(mat3,0,100);
-	// neural_network nn;
-	// std :: vector<int> weights = {784,200,784};
-	// nn.init(weights,1000,false,0,1);
-	// int k = 10;
-	// while(k--) {
-	// 	nn.forward(mat3);
-	// 	//nn.print_activations();
-	// 	nn.MSELossDiff(mat3,true);
-	// 	printf("Loss %6.10lf\n",nn.returnSingleLoss());
-	// 	//nn.printLossMat();
-	// 	//break;
-	// 	nn.backprop(mat3,0.1);
-	// }
-	// cudaDeviceSynchronize();
+
 }
